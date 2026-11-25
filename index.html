@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#07090b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>THE LAST TRAIN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Last Train">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<!-- Vector icon sprite: every control uses these, no emoji anywhere -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-flashlight" viewBox="0 0 24 24"><path d="M7 3.5h10l-1.8 5H8.8z"/><path d="M9.2 8.5V21a1 1 0 0 0 1 1h3.6a1 1 0 0 0 1-1V8.5"/><path d="M12 12v3"/><path d="M12 .8v1.2M4.6 2.6l1 1M19.4 2.6l-1 1"/></symbol>
+    <symbol id="i-crouch" viewBox="0 0 24 24"><circle cx="9" cy="5" r="2"/><path d="M9 8l3 3.5 4.5.5M9 8L7 12l3 2.5L8 20M10 14.5l4 1.5 2 4M3 21h18"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path d="M9 11.5V5.5a1.5 1.5 0 0 1 3 0V10M12 9.5v-5a1.5 1.5 0 0 1 3 0V10M15 10V6.5a1.5 1.5 0 0 1 3 0V14c0 4-2.6 7-6.6 7-3 0-4.6-1.5-6-4l-1.8-3.2a1.5 1.5 0 0 1 2.4-1.8L9 14"/></symbol>
+    <symbol id="i-run" viewBox="0 0 24 24"><path d="M6 13l6-6 6 6M6 20l6-6 6 6"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="M8 7V5.5a4 4 0 0 1 8 0V7"/><path d="M6.5 7h11A1.5 1.5 0 0 1 19 8.5V19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8.5A1.5 1.5 0 0 1 6.5 7z"/><path d="M9 14h6"/></symbol>
+    <symbol id="i-flare" viewBox="0 0 24 24"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/><path d="M5 19l3.2-3.2M19 19l-3.2-3.2M12 22v-4"/></symbol>
+    <symbol id="i-medkit" viewBox="0 0 24 24"><rect x="3" y="7.5" width="18" height="12.5" rx="2.2"/><path d="M9 7.5V5h6v2.5M12 11v6M9 14h6"/></symbol>
+    <symbol id="i-follow" viewBox="0 0 24 24"><circle cx="8.5" cy="7.5" r="3"/><path d="M2.5 20c0-3.3 2.7-6 6-6s6 2.7 6 6M17 8l4 4-4 4M21 12h-6.5"/></symbol>
+    <symbol id="i-stay" viewBox="0 0 24 24"><path d="M12 21s-6-5.2-6-10.2a6 6 0 0 1 12 0C18 15.800 12 21 12 21z"/><circle cx="12" cy="10.800" r="2.200"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.200"/><path d="M12 2.500v3M12 18.500v3M2.500 12h3M18.500 12h3M5.300 5.300l2.100 2.100M16.600 16.600l2.100 2.100M5.300 18.700l2.100-2.100M16.600 7.400l2.100-2.100"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.500 8-8 9-4.500-1-8-4-8-9V6z"/><path d="M12 8v6M9 11h6"/></symbol>
+    <symbol id="i-noise" viewBox="0 0 24 24"><path d="M3 12v0M7 9v6M11 5v14M15 8v8M19 10.500v3"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.500s-7.500-4.600-9.200-9.600A5 5 0 0 1 12 7.800a5 5 0 0 1 9.200 3.100c-1.700 5-9.200 9.600-9.200 9.600z"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2L5 13.500h6L10 22l8-11.500h-6z"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2.200 4L16 12H5"/></symbol>
+    <symbol id="i-cell" viewBox="0 0 24 24"><rect x="7" y="5" width="10" height="16" rx="2"/><path d="M10 3h4v2h-4M12.200 9.500l-2 3.200h3.600l-2 3.200"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15.500" r="4"/><path d="M11 12.500L20 3.500M16.500 7l3 3M14 9.500l2 2"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.500l5 5L20 6.500"/></symbol>
+    <symbol id="i-train" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="14" rx="3"/><path d="M5 11h14M8.500 21l2-4M15.500 21l-2-4"/><circle cx="9" cy="14" r=".7"/><circle cx="15" cy="14" r=".7"/></symbol>
+    <symbol id="i-roll" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.800-6.100"/><path d="M20 3.500V8h-4.500"/></symbol>
+    <symbol id="i-battery" viewBox="0 0 24 24"><rect x="2.500" y="7.500" width="16" height="9" rx="2"/><path d="M21 10.500v3M6.500 10.500v3M10 10.500v3"/></symbol>
+    <symbol id="i-bottle" viewBox="0 0 24 24"><path d="M10 2h4v4l2 3v11a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V9l2-3z"/><path d="M8 13h8"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.500l13 7.500-13 7.500z"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+    <symbol id="i-radio" viewBox="0 0 24 24"><rect x="6.500" y="8" width="11" height="13" rx="2"/><path d="M9 8V3M9.500 12h5M9.500 16h5"/></symbol>
+    <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.700 6.300a4 4 0 0 0-5 5L3 18l3 3 6.700-6.700a4 4 0 0 0 5-5l-2.500 2.500-2.200-.5-.5-2.200z"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><path d="M6 21V3.500h9V21M3 21h18M15 5.500l3.500 1V19.500L15 20"/><path d="M12 12.500h.01"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.500" cy="10.500" r="6"/><path d="M15 15l6 6"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-cross" viewBox="0 0 24 24"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.500 6h.01M3.500 12h.01M3.500 18h.01"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h7"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="M3 7.500L12 3l9 4.500v9L12 21l-9-4.500z"/><path d="M3 7.500L12 12l9-4.500M12 12v9"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v8M6.300 6.800a8 8 0 1 0 11.400 0"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.500" width="14" height="10" rx="2"/><path d="M8 10.500V8a4 4 0 0 1 8 0v2.500"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5.500 9.500V20h13V9.500"/></symbol>
+  </defs>
+</svg>
+
+<canvas id="gl"></canvas>
+<div id="ui"></div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
