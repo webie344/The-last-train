@@ -2,12 +2,13 @@
 // and occasionally makes human mistakes.
 import * as THREE from 'three';
 import { Rig } from './rig.js';
-import { clamp, damp, dampAngle, resolveMove, rand, pick } from './util.js';
+import { clamp, damp, dampAngle, resolveMove, rand, pick, lineBlocked } from './util.js';
 
 export class Companion {
   constructor(G, gltf) {
     this.G = G; this.pos = new THREE.Vector3(); this.yaw = 0; this.mode = 'follow'; this.down = false; this.speed = 0; this.path = []; this.pi = 0; this.repath = 0; this.stayAt = null;
     this.task = null; this.taskT = 0; this.warnCool = 0; this.flareCool = 12; this.mistakeT = rand(50, 90); this.reviveT = 0; this.talkCool = 0; this.freeze = 0; this.flares = 2; this.visible = true; this.idleLine = rand(40, 70);
+    this.friendly = true; this.shootCd = 1; this.name = 'Mara'; this._o = new THREE.Vector3();
     this.rig = new Rig(gltf, { tint: 0x8a4a3c, height: 1.68, rough: 0.8 });
     G.scene.add(this.rig.root); this.rig.play('Idle_Loop');
     const lamp = new THREE.PointLight(0xffd9a0, 0, 5, 2); lamp.position.set(0, 1.4, 0.3); this.rig.root.add(lamp); this.lamp = lamp;
@@ -54,6 +55,7 @@ export class Companion {
       if (this.mistakeT <= 0 && this.speed > 1.5 && G.mission.threatOn && !G.world.inTrain(this.pos.x, this.pos.z)) { this.mistakeT = rand(70, 130); if (Math.random() < 0.7) { G.noise(this.pos.x, this.pos.z, 10, 'mara'); G.audio.clang(4); this.say('Sorry! Tripped on something.', true, 0); } else { this.freeze = rand(1.2, 2); this.say('I... I cannot move. Give me a second.', true, 0); } }
       if (!want && this.idleLine <= 0 && !C.active && dP < 6) { this.idleLine = rand(60, 110); this.say(pick(['Do you ever think about the surface?', 'It is too quiet down here.', 'My dad worked on these lines. Before.', 'Keep the light low. It hates light.']), true); }
     }
+    this.shootCd -= dt; if (this.mode !== 'interact' && this.freeze <= 0 && !this.down) this.fightBack();
     if (want && sp > 0 && this.freeze <= 0) {
       if (this.goTo(want.x, want.z, sp, dt)) { this.speed = damp(this.speed, 0, 8, dt); }
       if (sp > 4.8 && Math.random() < dt * 0.4) G.noise(this.pos.x, this.pos.z, 5, 'mara');
@@ -61,6 +63,18 @@ export class Companion {
     if (!this.rig.busy && this.reviveT === 0 && !(this.mode === 'interact' && this.task && this.taskT > 0)) this.rig.locomote(this.speed);
     this.lamp.intensity = G.world.inTrain(this.pos.x, this.pos.z) || G.world.powered ? 0 : 1.6;
     this.rig.root.position.copy(this.pos); this.rig.root.rotation.y = this.yaw; this.rig.update(dt);
+  }
+  // Mara shoots raiders (and the Stalker when it is on you). Defend mode: faster and harder.
+  fightBack() {
+    const G = this.G, rate = this.mode === 'defend' ? 0.32 : 0.75; if (this.shootCd > 0) return;
+    let best = null, bd = 24;
+    for (const r of G.raiders) { if (!r.alive || r.state === 'PATROL' && !r.sawPlayer) continue; const d = Math.hypot(r.pos.x - this.pos.x, r.pos.z - this.pos.z); if (d < bd && !lineBlocked(G.world.colliders, this.pos.x, this.pos.z, r.pos.x, r.pos.z, 1.2)) { bd = d; best = r; } }
+    const C = G.creature; if (!best && C.active && C.alive && ['CHASE', 'ATTACK'].includes(C.state)) { const d = Math.hypot(C.pos.x - this.pos.x, C.pos.z - this.pos.z); if (d < 18 && !lineBlocked(G.world.colliders, this.pos.x, this.pos.z, C.pos.x, C.pos.z, 1.2)) best = C; }
+    if (!best) return;
+    this.shootCd = rate; this.yaw = Math.atan2(best.pos.x - this.pos.x, best.pos.z - this.pos.z); this.rig.fire?.();
+    const o = this._o.set(this.pos.x + Math.sin(this.yaw) * 0.45, 1.3, this.pos.z + Math.cos(this.yaw) * 0.45), tgt = new THREE.Vector3(best.pos.x, best === C ? 1.3 : 1.2, best.pos.z), dir = tgt.sub(o).normalize();
+    G.audio.shot(this.pos, false); G.combat.shoot(this, o, dir, { dmg: this.mode === 'defend' ? 12 : 8, spread: 0.035, range: 45, tracerColor: 0x9fe8ff, flashColor: 0x9fe8ff, noise: 12 });
+    if (Math.random() < 0.08) this.say(pick(['Firing!', 'Got one on me!', 'Keep moving!']), true, 6);
   }
   maybeFlare() {
     const G = this.G, C = G.creature; if (this.flareCool > 0 || this.flares <= 0 || !C.active) return;

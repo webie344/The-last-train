@@ -10,6 +10,7 @@ export class Creature {
   constructor(G, gltf) {
     this.G = G; this.pos = new THREE.Vector3(0, 0, -40); this.yaw = 0; this.state = 'DORMANT'; this.t = 0; this.path = []; this.pi = 0; this.repath = 0;
     this.goal = null; this.aware = 0; this.lastSeen = null; this.lostT = 0; this.atkT = 0; this.atkCool = 0; this.flinchCool = 0; this.expose = 0; this.sound = null; this.soundT = 0;
+    this.maxHp = 520; this.hp = 520; this.alive = true; this.hurtAcc = 0; this.deadUntil = 0; this.name = 'Stalker';
     this.active = false; this.speed = 0; this.threat = 0; this.mercy = 0; this.growlT = 6; this.hideSpot = null; this.stalkAngle = 0; this.lungeDone = false; this.scratchT = 0; this.orderTag = 'none';
     this.rig = new Rig(gltf, { tint: 0x16181a, height: 2.12, rough: 0.55, metal: 0.1, emissive: 0x1a0303, emissiveI: 0.6, scaleXZ: 0.78 });
     if (this.rig.pivot) this.rig.pivot.rotation.x = 0.16;
@@ -18,6 +19,17 @@ export class Creature {
     this.eyeGlow = new THREE.PointLight(0xff3020, 0.0, 3.5, 2); this.eyeGlow.position.set(0, 1.95, 0.2); this.rig.root.add(this.eyeGlow);
     this.rig.root.visible = false; G.scene.add(this.rig.root); this.rig.play('Idle_Loop');
     G.noiseBus.on('noise', (e) => this.hear(e));
+  }
+  damage(d, info = {}) {
+    if (!this.active || !this.alive) return; const G = this.G; this.hp -= d; this.hurtAcc += d; G.audio.flesh(this.pos);
+    if (this.hp <= 0) { this.die(); return; }
+    if (this.hurtAcc > 120 && this.flinchCool <= 0) { this.hurtAcc = 0; this.flinchCool = 2.5; G.audio.screech(this.pos); this.rig.once('Hit_Chest', { fade: 0.05 }); this.set('RETREAT'); this.fled = true; }
+    else if (!['CHASE', 'ATTACK', 'RETREAT'].includes(this.state) && this.mercy <= 0) { this.aware = 1; this.set('CHASE'); G.audio.screech(this.pos); G.events.emit('chaseStart'); }
+    void info;
+  }
+  die() {
+    const G = this.G; this.alive = false; this.hp = 0; this.state = 'DEAD'; this.rig.cancelOnce(); this.rig.play('Death01', { loop: false, fade: 0.1 }); G.audio.screech(this.pos); G.events.emit('stalkerDown', this); G.input.pattern('kill');
+    setTimeout(() => { this.despawn(); this.alive = true; this.hp = this.maxHp; this.deadUntil = G.time + 150; }, 4500);
   }
   get dormant() { return this.state === 'DORMANT'; }
   set(s) { if (this.state !== s) { this.state = s; this.t = 0; this.path = []; this.repath = 0; } }
@@ -40,6 +52,7 @@ export class Creature {
   // ---- director orders: {act, x, z, tag}
   order(act, a = {}) {
     const P = this.G.player; this.orderTag = act;
+    if (this.G.time < this.deadUntil && act !== 'despawn') return false;
     if (act === 'despawn') { this.despawn(); return true; }
     if (!this.active) { if (!this.spawn(a.x !== undefined ? a : null)) return false; }
     if (this.state === 'CHASE' || this.state === 'ATTACK') { if (act === 'retreat') { this.set('RETREAT'); return true; } return false; }
@@ -98,6 +111,7 @@ export class Creature {
   update(dt) {
     const G = this.G, P = G.player;
     if (!this.active) { this.threat = damp(this.threat, 0, 2, dt); return; }
+    if (!this.alive) { this.speed = 0; this.threat = damp(this.threat, 0, 2, dt); this.rig.root.position.copy(this.pos); this.rig.root.rotation.y = this.yaw; this.rig.update(dt); this.eyeGlow.intensity = 0; return; }
     this.t += dt; this.atkCool -= dt; this.flinchCool -= dt; this.mercy = Math.max(0, this.mercy - dt); this.soundT += dt; this.growlT -= dt;
     const dx = P.pos.x - this.pos.x, dz = P.pos.z - this.pos.z, dist = Math.hypot(dx, dz), face = Math.atan2(dx, dz);
     const sees = this.sees();

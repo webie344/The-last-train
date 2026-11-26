@@ -1,7 +1,7 @@
 // The Last Train: bootstrap, game loop, menu, settings, save, respawn.
 import * as THREE from 'three';
 import { CFG } from './config.js';
-import { Emitter, clamp } from './util.js';
+import { Emitter, clamp, pick } from './util.js';
 import { glowTexture } from './textures.js';
 import { GameAudio } from './audio.js';
 import { UI } from './ui.js';
@@ -16,6 +16,7 @@ import { Director } from './director.js';
 import { Interactables } from './interact.js';
 import { Mission } from './chapter1.js';
 import { FX } from './fx.js';
+import { Combat } from './combat.js';
 
 const $ = (id) => document.getElementById(id);
 const lowEnd = (navigator.hardwareConcurrency || 4) <= 4 || /Android/i.test(navigator.userAgent) && (navigator.deviceMemory || 4) <= 3;
@@ -60,8 +61,13 @@ async function boot() {
   G.audio = ui.audio = new GameAudio(); G.audio.setVolumes({ master: G.settings.volume, music: G.settings.music });
   G.fx = new FX(G); G.fx.apply();
   ui.setLoader(0.12, 'Loading character models');
-  G.gltf = await loadUAL(CFG.ASSET_UAL, (p) => ui.setLoader(0.12 + p * 0.6, 'Loading character models'));
-  if (!G.gltf) console.warn('UAL model not found; using placeholder characters.');
+  G.modelYaw = new URLSearchParams(location.search).get('flip') ? Math.PI : 0;
+  G.gltf = await loadUAL(CFG.ASSET_UAL, (p) => ui.setLoader(0.12 + p * 0.3, 'Loading mannequin'));
+  ui.setLoader(0.44, 'Loading soldier');
+  G.soldier = await loadUAL(CFG.ASSET_SOLDIER, (p) => ui.setLoader(0.44 + p * 0.2, 'Loading soldier'));
+  G.rifle = await loadUAL(CFG.ASSET_RIFLE, (p) => ui.setLoader(0.64 + p * 0.1, 'Loading rifle'));
+  if (!G.gltf) G.gltf = G.soldier;
+  if (!G.soldier) console.warn('Soldier.glb not found in assets/: the mannequin plays the soldier. Copy your Soldier.glb and Rifle.glb into assets/.');
   ui.setLoader(0.78, 'Building station');
   await new Promise((r) => setTimeout(r, 30));
   G.world = buildWorld(G); G.scene.add(G.world.group);
@@ -73,7 +79,8 @@ async function boot() {
   ui.setMapBase(G.world.colliders, B);
   ui.setLoader(0.88, 'Waking the creature');
   G.input = new Input(ui, G.settings);
-  G.player = new Player(G, G.gltf); G.creature = new Creature(G, G.gltf); G.companion = new Companion(G, G.gltf);
+  G.combat = new Combat(G); G.raiders = []; G.say = (...a) => G.combat.say(...a);
+  G.player = new Player(G, G.soldier || G.gltf, G.rifle); G.creature = new Creature(G, G.gltf); G.companion = new Companion(G, G.gltf);
   G.interact = new Interactables(G); G.director = new Director(G); G.mission = new Mission(G); G.mission.init();
   G.player.teleport(G.world.anchors.trainSpawn, Math.PI);
   wire(); fitUI(); addEventListener('resize', () => { G.fx.apply(); fitUI(); }); addEventListener('orientationchange', () => setTimeout(() => { G.fx.apply(); fitUI(); }, 250));
@@ -100,6 +107,9 @@ function wire() {
   $('pRestart').addEventListener('click', () => { setPaused(false); respawn(true); });
   $('pQuit').addEventListener('click', () => location.reload());
   input.on('interact', (d) => { if (G.state === 'play') G.interact.press(!!d); });
+  input.on('fire', (d) => { if (G.state === 'play') player.setFire(d); else player.setFire(false); });
+  input.on('reload', () => G.state === 'play' && player.reload());
+  input.on('melee', () => G.state === 'play' && player.melee());
   input.on('crouch', () => G.state === 'play' && player.toggleCrouch());
   input.on('flashlight', () => G.state === 'play' && player.toggleFlash());
   input.on('roll', () => G.state === 'play' && player.roll());
@@ -131,8 +141,8 @@ async function startGame() {
 async function respawn(manual) {
   const ui = G.ui, P = G.player, A = G.world.anchors; G.state = 'respawn';
   await ui.fade(1, 700);
-  P.dead = false; P.downed = false; P.hp = manual ? 100 : 60; P.stamina = 100; P.busy = false; P.rolling = 0; P.setFlash(false, true); ui.setDowned(false); ui.setHealth(P.hp);
-  P.rig.cancelOnce(); P.rig.play('Idle_Loop', { fade: 0.1 }); G.creature.despawn(); G.director.budget = 0; G.director.lastEncounter = G.time; G.interact.holding = false;
+  P.dead = false; P.downed = false; P.hp = manual ? 100 : 60; P.stamina = 100; P.mag = 30; P.reserve = Math.max(P.reserve, 60); P.reloadT = 0; P.fireHeld = false; P.busy = false; P.rolling = 0; P.setFlash(false, true); ui.setDowned(false); ui.setHealth(P.hp);
+  P.rig.cancelOnce(); P.rig.play('Idle_Loop', { fade: 0.1 }); G.creature.despawn(); for (const r of G.raiders) if (r.alive) { r.state = 'PATROL'; r.aware = 0; r.sawPlayer = false; r.burst = 0; r.path = []; } G.director.budget = 0; G.director.lastEncounter = G.time; G.interact.holding = false;
   P.teleport({ x: A.arrive.x - 3.4, y: 0, z: 10 }, Math.PI); P.camYaw = Math.PI; G.companion.teleportTo(A.arrive.x - 3.8, 12); G.companion.mode = 'follow';
   await ui.fade(0, 900); G.state = 'play'; G.input.setEnabled(true);
   G.companion.say('Mara', manual ? 'Back at the train.' : 'I dragged you back. Do not do that again.', true);
@@ -147,7 +157,7 @@ function loop(now) {
   const play = G.state === 'play' || G.state === 'respawn';
   if (play) {
     G.time += dt; const P = G.player, W = G.world;
-    P.update(dt); P.updateCamera(dt); G.companion.update(dt); G.creature.update(dt); G.director.update(dt); G.mission.update(dt); G.interact.update(dt);
+    P.update(dt); P.updateCamera(dt); G.combat.update(dt); for (const r of G.raiders) r.update(dt); G.companion.update(dt); G.creature.update(dt); G.director.update(dt); G.mission.update(dt); G.interact.update(dt);
     W.update(dt, G.time, [P.pos, G.companion.pos, ...(G.creature.active ? [G.creature.pos] : [])].map((p) => ({ x: p.x, z: p.z })), { x: P.pos.x, z: P.pos.z });
     G.audio.setZone(W.zoneAt(P.pos.x, P.pos.z)); G.audio.setThreat(G.creature.threat);
     G.audio.update(dt, { pos: { x: P.pos.x, y: 1.5, z: P.pos.z }, fwd: { x: Math.sin(P.camYaw), z: Math.cos(P.camYaw) } });
@@ -169,7 +179,8 @@ function drawMap() {
   if (M.fuel >= 3 && !M.generatorOn) add(A.generator, '#ffd27f', 'sq', true);
   if (M.generatorOn && !M.survivorFound) add(A.cot, '#ffd27f', 'sq', true);
   add(G.companion.pos, '#7fe0ff');
-  if (G.creature.active && G.creature.state === 'CHASE') add(G.creature.pos, '#e5484d', null, true);
+  if (G.creature.active && G.creature.alive && G.creature.state === 'CHASE') add(G.creature.pos, '#e5484d', null, true);
+  for (const r of G.raiders) if (r.alive && (r.state === 'COMBAT' || r.sawPlayer)) add(r.pos, '#ff7a45', null, r.state === 'COMBAT');
   G.ui.drawMini(P.pos.x, P.pos.z, P.camYaw + Math.PI, marks);
 }
 

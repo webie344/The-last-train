@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { Rig } from './rig.js';
 import { CFG } from './config.js';
 import { clamp, pick } from './util.js';
+import { Raider } from './raider.js';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -59,8 +60,8 @@ export class Mission {
       note: () => (this.fuel >= 3 ? 'This will be LOUD' : `Need 3 fuel cells (have ${this.fuel})`), onHold: (dt, p) => { this._gt = (this._gt || 0) - dt; if (this._gt <= 0) { this._gt = 0.7; G.noise(gen.x, gen.z, 22 + p * 10, 'generator'); G.audio.generator('crank'); } }, onUse: () => this.startGenerator() });
     // optional searchables (Mara can fetch these too)
     const search = [
-      ['Locker', 24.4, -8.2, () => { G.player.add('medkit'); return 'Medkit'; }], ['Locker', 28.8, -8.2, () => { G.player.add('battery'); return 'Battery'; }], ['Locker', 29.7, -20, () => { G.player.add('flare', 2); return '2 flares'; }],
-      ['Cabinet', 12.4, 10.6, () => { G.player.add('scrap', 3); return '3 scrap'; }], ['Vending machine', 8.4, 12, () => { G.player.add('bottle', 2); return '2 bottles'; }], ['Ticket drawer', 7.7, -42.4, () => { G.player.add('scrap', 2); return '2 scrap'; }], ['Bench bag', 6.2, 26.8, () => { G.player.add('flare'); return 'Flare'; }],
+      ['Locker', 24.4, -8.2, () => { G.player.add('medkit'); G.player.addAmmo(30); return 'Medkit + 30 ammo'; }], ['Locker', 28.8, -8.2, () => { G.player.add('battery'); return 'Battery'; }], ['Locker', 29.7, -20, () => { G.player.add('flare', 2); return '2 flares'; }],
+      ['Cabinet', 12.4, 10.6, () => { G.player.add('scrap', 3); G.player.addAmmo(30); return '3 scrap + 30 ammo'; }], ['Vending machine', 8.4, 12, () => { G.player.add('bottle', 2); return '2 bottles'; }], ['Ticket drawer', 7.7, -42.4, () => { G.player.add('scrap', 2); return '2 scrap'; }], ['Bench bag', 6.2, 26.8, () => { G.player.add('flare'); return 'Flare'; }],
     ];
     search.forEach(([name, x, z, give], i) => {
       const h = { id: 'srch' + i, name: name.toLowerCase(), x, z, done: false, onDone: null }; this.helps.push(h);
@@ -76,7 +77,18 @@ export class Mission {
     I.add({ id: 'recording', x: A.radio.x, z: A.radio.z, radius: 1.8, label: 'Play recording', short: 'PLAY', icon: 'note', once: true, hidden: () => !this.generatorOn || this.recording, enabled: () => true, onUse: () => this.playRecording() });
     // first scare trigger near ticket hall
     G.events.on('died', () => { this.deaths++; });
+    G.events.on('enemyDown', () => { this.kills = (this.kills || 0) + 1; G.player.stats.kills = this.kills; if (this.kills === 1) this.say('Mara', 'He is down. They carry food and ammo, check the body.', true); });
+    G.events.on('raiderSpotted', () => { if (this.warnedRaiders) return; this.warnedRaiders = true; this.say('Mara', 'Armed men! They are people, not creatures. Shoot back, but every shot is loud!', true); });
   }
+
+  spawnRaiders(extra = false) {
+    const G = this.G, skin = G.soldier || G.gltf;
+    const defs = extra
+      ? [[8.5, -47, [[8.5, -40], [5, -30], [7, -18]]], [4, -49, [[3, -38], [6, -26]]]]
+      : [[1.5, -41, [[1.5, -41], [8, -39.5], [1.5, -47.5]]], [8.2, -48, [[8.2, -48], [2, -36], [8, -35]]], [7, -16, [[7, -22], [7, -9], [2.5, -14]]], [2.5, 27, [[2.5, 27], [2.5, 32], [8.5, 31]]], [26, -17, [[26, -17], [29, -10], [24.5, -12]]]];
+    for (const [x, z, patrol] of defs) { const r = new Raider(G, skin, G.rifle, x, z, patrol.map(([px, pz]) => ({ x: px, z: pz }))); G.raiders.push(r); }
+  }
+  clearRaiders() { const G = this.G; for (const r of G.raiders) { G.scene.remove(r.rig.root); r.weapon.dispose?.(); } G.raiders.length = 0; }
 
   afterFuel() {
     if (this.fuel === 1) this.say('Mara', 'One cell. We need two more. Stay quiet.', true);
@@ -98,7 +110,7 @@ export class Mission {
     await this.script([['Mara', 'Brakes are cold. Hold on.', true], ['Radio', '...all stations... Kessler Street... do not stop...', true], ['Mara', 'We have no choice. Fuel gauge is red.', true]], 300);
     await wait(2500); G.audio.brakes(); G.player.shake = 0.8; G.ui.notify('Arriving at Kessler Street', 'train'); await wait(3500);
     G.audio.setMoving(false); G.world.setMoving(false); G.world.trainDoors.forEach((d) => { d.locked = false; });
-    this.phase = 'explore'; this.threatOn = true; G.director.enabled = true; G.director.budget = 25; this.refresh();
+    this.phase = 'explore'; this.threatOn = true; G.director.enabled = true; G.director.budget = 25; this.spawnRaiders(); this.refresh();
     await this.script([['Mara', 'Lights are dead. Find the fuel cells. I will be right behind you.', true], ['Mara', 'Use the wheel button for commands. Crouch if you hear anything.', false]]);
   }
   async startGenerator() {
@@ -106,7 +118,7 @@ export class Mission {
     await wait(900); G.world.setPower(true); G.audio.setPower(true); G.audio.alarm(true); this.so.locked = false; this.so.want = true; this.refresh();
     await wait(1200); G.audio.stinger(); setTimeout(() => G.audio.alarm(false), 7000);
     this.say('Mara', 'Power is on... and that sound carried. It heard us. Move!', true);
-    await wait(4500); G.director.budget = 50; G.creature.order('hunt'); G.events.emit('chaseHint');
+    await wait(4500); G.director.budget = 50; this.spawnRaiders(true); this.say('Mara', 'Raiders heard the generator too. Watch the north end!', true); await wait(2500); G.creature.order('hunt'); G.events.emit('chaseHint');
     await wait(2500); this.say('Mara', 'The security office door is live. Survivors would hide there.', true);
   }
   async talkSurvivor() {
@@ -122,12 +134,12 @@ export class Mission {
   }
   checkReturn() { if (this.survivorFound && this.phase !== 'return' && this.phase !== 'done') { this.phase = 'return'; this.departReady = false; this.refresh(); this.G.ui.notify('Return to TR-09', 'train'); setTimeout(() => this.say('Mara', 'Now back to the train. Quietly.', true), 2500); } }
   async finish() {
-    if (this.ending) return; const G = this.G; this.ending = true; this.phase = 'done'; this.threatOn = false; G.director.enabled = false; G.creature.despawn(); this.refresh();
+    if (this.ending) return; const G = this.G; this.ending = true; this.phase = 'done'; this.threatOn = false; G.director.enabled = false; G.creature.despawn(); this.clearRaiders?.(); this.refresh();
     G.audio.trainDepart(); G.world.trainDoors.forEach((d) => { d.locked = true; d.target = 0; }); await G.ui.fade(1, 900); G.world.setMoving(true); G.audio.setMoving(true); G.audio.setZone('train'); await G.ui.fade(0, 700);
     await this.script([['Elias', 'Next stop is the lower lines. They are waiting.', true], ['Mara', 'We made it. For now.', true]], 200);
     const P = G.player, t = Math.round(G.time - this.started), mm = Math.floor(t / 60), ss = String(t % 60).padStart(2, '0');
     await G.ui.card('The Abandoned Station', 'Chapter 1 complete', 3200);
-    G.save({ complete: true, time: t }); G.ui.showEnd([['Time', `${mm}:${ss}`], ['Fuel cells', '3/3'], ['Survivor', 'Rescued'], ['Recording', this.recording ? 'Found' : 'Missed'], ['Times hit', P.stats.hits], ['Flares used', P.stats.flares], ['Downed', this.deaths]], () => G.restart());
+    G.save({ complete: true, time: t }); G.ui.showEnd([['Time', `${mm}:${ss}`], ['Fuel cells', '3/3'], ['Survivor', 'Rescued'], ['Recording', this.recording ? 'Found' : 'Missed'], ['Raiders down', this.kills || 0], ['Times hit', P.stats.hits], ['Flares used', P.stats.flares], ['Downed', this.deaths]], () => G.restart());
   }
   update(dt) {
     const G = this.G, P = G.player; if (this.phase === 'return' && !this.departReady && P.inTrain) { this.departReady = true; G.ui.notify('Elias boards TR-09', 'check'); const s = G.world.anchors.trainSpawn; this.survivor.root.position.set(-4.7, 0, 11.5); this.survivor.root.rotation.y = Math.PI / 2; this.survivor.play('Sitting_Idle_Loop'); void s; this.refresh(); this.say('Mara', 'Everyone is aboard. Start the train.', true); }

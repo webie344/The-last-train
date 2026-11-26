@@ -16,6 +16,8 @@ export class Input {
   on(name, fn) { this.handlers[name] = fn; }
   fire(name, ...a) { this.handlers[name]?.(...a); }
   buzz(ms = 8) { if (this.s.haptics && navigator.vibrate) { try { navigator.vibrate(ms); } catch { /* ignore */ } } }
+  // named haptic patterns for combat feedback: [vibrate, pause, vibrate, ...]
+  pattern(name) { const P = { shot: 12, shotHeavy: 22, hit: [18, 30, 12], hurt: [70, 40, 50], hurtBig: [120, 50, 90, 40, 60], kill: [25, 40, 25, 40, 55], headshot: [20, 25, 40], reload: [14, 90, 24], reloadDone: [30], empty: [8, 40, 8], roll: [20, 30, 20], melee: [40, 25, 30], down: [200, 80, 200, 80, 300], heal: [20, 60, 20, 60, 20], alert: [30, 60, 30], low: [40, 160, 40] }; const v = P[name]; if (v !== undefined) this.buzz(v); }
 
   _bindStick() {
     const z = this.ui.$('stickZone'), stick = this.ui.$('stick'), knob = this.ui.$('knob'), ghost = this.ui.$('stickGhost');
@@ -71,11 +73,12 @@ export class Input {
       b.addEventListener('pointerdown', (e) => {
         e.preventDefault(); e.stopPropagation(); b.setPointerCapture?.(e.pointerId); b.classList.add('pressed'); this.buzz(act === 'interact' ? 14 : 8);
         if (act === 'interact') { this.interactHeld = true; this.fire('interact', true); return; }
+        if (act === 'fire') { this.fireHeld = true; this.fire('fire', true); return; }
         if (act === 'sprint') { this.sprintLatch = !this.sprintLatch; b.classList.toggle('on', this.sprintLatch); return; }
         if (!this.enabled && !['pause', 'commands', 'inventory', 'fullscreen'].includes(act)) return;
         this.fire(act);
       });
-      const up = () => { b.classList.remove('pressed'); if (act === 'interact' && this.interactHeld) { this.interactHeld = false; this.fire('interact', false); } };
+      const up = () => { b.classList.remove('pressed'); if (act === 'fire' && this.fireHeld) { this.fireHeld = false; this.fire('fire', false); } if (act === 'interact' && this.interactHeld) { this.interactHeld = false; this.fire('interact', false); } };
       ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => b.addEventListener(ev, up));
     });
     this.ui.root.addEventListener('click', (e) => {
@@ -85,7 +88,7 @@ export class Input {
   }
 
   _bindKeys() {
-    const map = { KeyE: 'interact', KeyC: 'crouch', KeyF: 'flashlight', Space: 'roll', KeyG: 'item', KeyI: 'inventory', Tab: 'inventory', KeyQ: 'commands', Escape: 'pause', KeyP: 'pause' };
+    const map = { KeyE: 'interact', KeyC: 'crouch', KeyF: 'flashlight', Space: 'roll', KeyG: 'item', KeyI: 'inventory', Tab: 'inventory', KeyQ: 'commands', Escape: 'pause', KeyP: 'pause', KeyR: 'reload', KeyV: 'melee' };
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { this.keySprint = true; return; }
@@ -101,7 +104,9 @@ export class Input {
       this.keys.delete(e.code);
       if (e.code === 'KeyE') { this.interactHeld = false; this.fire('interact', false); }
     });
-    window.addEventListener('blur', () => { this.keys.clear(); this.keySprint = false; this._resetStick?.(); this.interactHeld = false; this.fire('interact', false); });
+    document.addEventListener('mousedown', (e) => { if (e.button === 0 && this.enabled && document.pointerLockElement) { this.fireHeld = true; this.fire('fire', true); } });
+    document.addEventListener('mouseup', (e) => { if (e.button === 0 && this.fireHeld) { this.fireHeld = false; this.fire('fire', false); } });
+    window.addEventListener('blur', () => { this.keys.clear(); this.keySprint = false; this._resetStick?.(); this.interactHeld = false; this.fire('interact', false); if (this.fireHeld) { this.fireHeld = false; this.fire('fire', false); } });
   }
 
   // Called once per frame by the game.

@@ -68,6 +68,8 @@ export class UI {
       <div id="subtitle"><b id="subWho"></b><span id="subTxt"></span></div>
       <div id="notes"></div>
       <div id="prompt" class="hidden"></div>
+      <div id="crosshair"><i></i><i></i><i></i><i></i><b></b></div><div id="hitm"></div><div id="hurtDir"></div>
+      <div id="ammo"><b id="ammoMag">30</b><span id="ammoRes">/ 120</span><small id="ammoName">RIFLE</small></div>
       <div id="downed" class="hidden"><b>You're down</b><span id="downTxt">Hold on…</span><div class="dbar"><i id="downFill"></i></div></div>
 
       <div id="stickZone">
@@ -78,6 +80,9 @@ export class UI {
       <div id="lookZone"></div>
 
       <div id="cluster">
+        <button id="btnFire" class="rbtn lg" data-act="fire" aria-label="Fire">${ic('fire')}<small>FIRE</small></button>
+        <button id="btnReload" class="rbtn md" data-act="reload" aria-label="Reload">${ic('reload')}<small>RELOAD</small></button>
+        <button id="btnMelee" class="rbtn md" data-act="melee" aria-label="Melee">${ic('melee')}<small>MELEE</small></button>
         <button id="btnItem" class="rbtn md" data-act="item" aria-label="Use item"><span id="itemIcon">${ic('flare')}</span><small id="itemCount">2</small></button>
         <button id="btnRoll" class="rbtn md" data-act="roll" aria-label="Dodge roll">${ic('roll')}<small>DODGE</small></button>
         <button id="btnFlash" class="rbtn md toggle on" data-act="flashlight" aria-label="Flashlight">${ic('flashlight')}<small>LIGHT</small></button>
@@ -148,7 +153,8 @@ export class UI {
     this.$ = (id) => root.querySelector('#' + id);
     this.q = (s) => root.querySelector(s);
     this.vig = this.$('vignette');
-    root.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => { this.modal(b.dataset.close, false); this.audio?.ui('back'); this.onClose?.(b.dataset.close); }));
+    const closeIt = (e) => { const b = e.target.closest('[data-close]'); if (!b) return; e.preventDefault(); e.stopPropagation(); if (b._t && performance.now() - b._t < 350) return; b._t = performance.now(); this.modal(b.dataset.close, false); try { this.audio?.ui('back'); } catch { /* audio not started yet */ } this.onClose?.(b.dataset.close); };
+    root.addEventListener('click', closeIt); root.addEventListener('pointerup', closeIt);
     this.$('objHead').addEventListener('click', () => this.$('objective').classList.toggle('open'));
     this.$('verTxt').textContent = '';
     this.tips = ['Noise draws it in. Crouch when you can.', 'It never enters the train. Remember that.', 'Hold the generator repair: it is loud.', 'It hunts those who are alone. Stay near Mara.', 'Flares give you a few seconds of safety. Spend them well.', 'Dodge at the last moment to slip its swing.'];
@@ -209,6 +215,10 @@ export class UI {
     const it = ITEM[selected] || ITEM.flare; this.$('itemIcon').innerHTML = ic(it.icon); this.$('itemCount').textContent = inv[selected] || 0;
     this.$('btnItem').classList.toggle('disabled', !(inv[selected] > 0));
   }
+  setAmmo(mag, res, reloading) { this.$('ammoMag').textContent = reloading ? '--' : mag; this.$('ammoRes').textContent = '/ ' + res; this.$('ammo').classList.toggle('low', !reloading && mag <= 6); }
+  crosshair(hot, firing) { const c = this.$('crosshair'); c.classList.toggle('hot', !!hot); c.classList.toggle('fire', !!firing); }
+  hitMarker(kill) { const h = this.$('hitm'); h.classList.remove('show', 'kill'); void h.offsetWidth; h.classList.add('show'); if (kill) h.classList.add('kill'); }
+  hurtDir(rel) { const d = this.$('hurtDir'); d.style.transform = `rotate(${rel}rad)`; d.classList.remove('show'); void d.offsetWidth; d.classList.add('show'); }
   toggleState(id, on) { this.$(id).classList.toggle('on', !!on); }
   hurt(amount = 1) { const h = this.$('hurt'); h.style.opacity = clamp(amount, 0, 1); h.style.transition = 'none'; requestAnimationFrame(() => { h.style.transition = 'opacity 900ms ease'; h.style.opacity = 0; }); }
   setDowned(on, p = 0, text = '') { const d = this.$('downed'); d.classList.toggle('hidden', !on); this.$('downFill').style.width = (clamp(p, 0, 1) * 100) + '%'; if (text) this.$('downTxt').textContent = text; }

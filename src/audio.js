@@ -139,6 +139,19 @@ export class GameAudio {
       const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1400; g.gain.value = 0.0001; g.gain.exponentialRampToValueAtTime(0.07, c.currentTime + 0.5); o.connect(f); f.connect(g); this._out(g, { wet: 0.7 }); o.start(); l.start(); this._alarm = { o, l, g };
     } else if (!on && this._alarm) { const { o, l, g } = this._alarm; g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.6); setTimeout(() => { o.stop(); l.stop(); }, 700); this._alarm = null; }
   }
+  // ---- gunfire (own = the player's rifle, louder and closer)
+  shot(pos = null, own = false) {
+    const k = own ? 1 : 0.7;
+    this._burst({ type: 'white', freq: 2200, q: 0.6, filt: 'bandpass', dur: 0.09, peak: 0.55 * k, wet: this.zone === 'hall' ? 0.55 : 0.3, pos, a: 0.001 });
+    this._burst({ type: 'brown', freq: 260, filt: 'lowpass', dur: 0.2, peak: 0.7 * k, wet: 0.5, pos, a: 0.001 });
+    this._tone({ f0: 150, f1: 48, type: 'sine', dur: 0.14, peak: 0.35 * k, wet: 0.3, pos, a: 0.001 });
+  }
+  mag(stage = 'out') { this._burst({ type: 'white', freq: stage === 'out' ? 1400 : 2400, q: 4, dur: 0.05, peak: 0.22, wet: 0.05 }); this._tone({ f0: stage === 'out' ? 180 : 260, type: 'square', dur: 0.05, peak: 0.05, wet: 0.05 }); }
+  dry() { this._burst({ type: 'white', freq: 3400, q: 6, dur: 0.03, peak: 0.18, wet: 0.05 }); }
+  hitTick(kill = false) { this._tone({ f0: kill ? 520 : 1500, f1: kill ? 260 : 1100, type: 'triangle', dur: kill ? 0.18 : 0.05, peak: kill ? 0.16 : 0.09, wet: 0.1 }); }
+  flesh(pos = null) { this._burst({ type: 'brown', freq: 380, filt: 'lowpass', dur: 0.12, peak: 0.3, wet: 0.2, pos }); }
+  whiz(pos = null) { this._tone({ f0: 3200, f1: 1200, type: 'sine', dur: 0.12, peak: 0.05, wet: 0.2, pos, a: 0.002 }); }
+  melee() { this._burst({ type: 'white', freq: 700, q: 0.8, dur: 0.12, peak: 0.2, wet: 0.2 }); this._tone({ f0: 120, f1: 70, type: 'sine', dur: 0.1, peak: 0.2, wet: 0.1 }); }
   stinger(pos = null) { [233, 247.5, 277, 311].forEach((f) => this._tone({ f0: f, f1: f * 0.98, type: 'sawtooth', dur: 1.6, peak: 0.07, wet: 0.7, pos, a: 0.02 })); this._burst({ type: 'white', freq: 4000, q: 0.4, filt: 'highpass', dur: 0.5, peak: 0.15, wet: 0.5 }); }
   growl(pos = null, intensity = 1) {
     if (!this.ctx) return;
