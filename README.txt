@@ -1,5 +1,15 @@
-THE LAST TRAIN - Chapter 1: The Abandoned Station  (v0.2.0)
+THE LAST TRAIN - Chapter 1: The Abandoned Station  (v0.3.0)
 Mobile-first 3D survival horror. Solo + AI companion Mara. Vanilla ES modules + three.js r160 (loaded from the jsDelivr CDN).
+
+WHAT'S NEW IN v0.3 (COMBAT)
+- YOU play as the Soldier (Soldier.glb) with your rifle (Rifle.glb) shown in hand with arm IK, ported from Compound Clash. Mara is now the mannequin (UAL1_Standard.glb).
+  >>> COPY Soldier.glb and Rifle.glb from your Compound Clash folder into assets/ (next to UAL1_Standard.glb). I never received those two files, so
+      without them the player falls back to the mannequin and a built-in AK-style rifle. Nothing else needs changing.
+- Fire (hold = auto), Reload, Melee buttons, crosshair, ammo counter, hit markers, damage-direction arc, aim assist. Gunshots are LOUD: they pull the Stalker and raiders.
+- Armed Raiders (rifles) patrol the station, hear noise, spot you, take cover/strafe, shoot in bursts, search, and drop ammo when killed. Reinforcements arrive when the generator starts.
+- The Stalker can be shot: it staggers and retreats, and can be killed (it returns later). Mara fights back with her pistol and calls targets out.
+- Talk-backs: spoken + subtitled call-outs from you, Mara and the raiders (contact, reloading, man down, hit, kill). Vibration patterns for fire, hit, kill, headshot, damage, reload, empty, low health.
+- Fixed: the close X on modals (inventory, settings, how-to) - tested with mouse and touch in a real browser.
 
 RUN IT
 1. It must be served over HTTP (ES modules + GLB loading do not work from file://).
@@ -21,9 +31,9 @@ GROQ AI DIRECTOR
 - Movement, perception, pathfinding and attacks are always local game AI.
 
 CONTROLS
-Touch: left stick moves (push to the edge to sprint, or use the sprint button); drag the right side to look; big button = context action (hold for repairs/searching);
+Touch: FIRE (hold), RELOAD, MELEE on the right; left stick moves (push to the edge to sprint, or use the sprint button); drag the right side to look; big button = context action (hold for repairs/searching);
        crouch, flashlight, dodge roll, item (flare etc.), top-right: Mara commands, inventory, fullscreen, pause.
-Keyboard: WASD, Shift sprint, mouse look (click to capture), E act, C crouch, F flashlight, Space dodge, G use item, 1-4 select item, I inventory, Q commands, Esc pause.
+Keyboard: WASD, left-click fire (after clicking the game to capture the mouse), R reload, V melee, Shift sprint, mouse look (click to capture), E act, C crouch, F flashlight, Space dodge, G use item, 1-4 select item, I inventory, Q commands, Esc pause.
 
 HOW A RUN GOES
 Start the train from the control compartment -> arrive at Kessler Street -> find 3 fuel cells (kiosk, locker room via maintenance corridor, ticket booth) ->

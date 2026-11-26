@@ -1,8 +1,8 @@
 // Service worker: caches the game shell, model and three.js so it installs and plays offline after the first online load.
-const VER = 'lasttrain-v0.2.0';
-const CORE = ['./', './index.html', './style.css', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './assets/UAL1_Standard.glb',
+const VER = 'lasttrain-v0.3.0';
+const CORE = ['./', './index.html', './style.css', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './assets/UAL1_Standard.glb', './assets/Soldier.glb', './assets/Rifle.glb',
   './src/main.js', './src/config.js', './src/util.js', './src/textures.js', './src/nav.js', './src/audio.js', './src/ui.js', './src/input.js', './src/rig.js', './src/world.js',
-  './src/player.js', './src/creature.js', './src/director.js', './src/companion.js', './src/interact.js', './src/chapter1.js', './src/fx.js'];
+  './src/player.js', './src/creature.js', './src/director.js', './src/companion.js', './src/interact.js', './src/chapter1.js', './src/fx.js', './src/combat.js', './src/raider.js'];
 const CDN = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(VER).then((c) => Promise.all(CORE.map((u) => c.add(u).catch(() => {})))).then(() => self.skipWaiting())); });
